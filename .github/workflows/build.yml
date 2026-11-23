@@ -36,16 +36,18 @@ jobs:
 
       - name: Download assets
         run: |
-          mkdir -p app/src/main/res/drawable
-          mkdir -p app/src/main/res/raw
-          mkdir -p app/src/main/res/mipmap-hdpi
-          mkdir -p app/src/main/res/mipmap-mdpi
-          mkdir -p app/src/main/res/mipmap-xhdpi
+          mkdir -p app/src/main/res/drawable app/src/main/res/raw
+          mkdir -p app/src/main/res/mipmap-hdpi app/src/main/res/mipmap-mdpi app/src/main/res/mipmap-xhdpi
 
+          # Better scary image (glitch horror face)
           curl -sL -o app/src/main/res/drawable/scary_face.png "https://clipart-library.com/images/pT5dRngkc.jpg"
+          # Fallback public domain skull
+          if [ ! -s app/src/main/res/drawable/scary_face.png ]; then
+            curl -sL -o app/src/main/res/drawable/scary_face.png "https://www.publicdomainpictures.net/pictures/370000/velka/image-1599417362z5n.jpg"
+          fi
+
           curl -sL -o app/src/main/res/raw/scare_sound.mp3 "https://orangefreesounds.com/wp-content/uploads/2024/07/Horror-scream-sound-effect.mp3"
 
-          # Use scary face as icon
           cp app/src/main/res/drawable/scary_face.png app/src/main/res/mipmap-hdpi/ic_launcher.png
           cp app/src/main/res/drawable/scary_face.png app/src/main/res/mipmap-mdpi/ic_launcher.png
           cp app/src/main/res/drawable/scary_face.png app/src/main/res/mipmap-xhdpi/ic_launcher.png

