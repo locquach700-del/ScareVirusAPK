@@ -40,13 +40,18 @@ jobs:
           mkdir -p app/src/main/res/raw
           mkdir -p app/src/main/res/mipmap-hdpi
           mkdir -p app/src/main/res/mipmap-mdpi
+          mkdir -p app/src/main/res/mipmap-xhdpi
 
+          # Scary face
           curl -sL -o app/src/main/res/drawable/scary_face.png "https://clipart-library.com/images/pT5dRngkc.jpg"
+
+          # Horror sound
           curl -sL -o app/src/main/res/raw/scare_sound.mp3 "https://orangefreesounds.com/wp-content/uploads/2024/07/Horror-scream-sound-effect.mp3"
 
-          # minimal valid 1x1 red PNG as icon (works for build)
-          echo iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg== | base64 -d > app/src/main/res/mipmap-hdpi/ic_launcher.png
-          cp app/src/main/res/mipmap-hdpi/ic_launcher.png app/src/main/res/mipmap-mdpi/ic_launcher.png
+          # Use the scary face as launcher icon too
+          cp app/src/main/res/drawable/scary_face.png app/src/main/res/mipmap-hdpi/ic_launcher.png
+          cp app/src/main/res/drawable/scary_face.png app/src/main/res/mipmap-mdpi/ic_launcher.png
+          cp app/src/main/res/drawable/scary_face.png app/src/main/res/mipmap-xhdpi/ic_launcher.png
 
           ls -lh app/src/main/res/drawable app/src/main/res/raw app/src/main/res/mipmap-hdpi
 
