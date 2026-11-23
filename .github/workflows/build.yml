@@ -34,16 +34,20 @@ jobs:
           yes | sdkmanager --licenses || true
           sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
 
-      - name: Download assets
+      - name: Download scary assets
         run: |
           mkdir -p app/src/main/res/drawable app/src/main/res/raw
           mkdir -p app/src/main/res/mipmap-hdpi app/src/main/res/mipmap-mdpi app/src/main/res/mipmap-xhdpi
 
-          # Better scary image (glitch horror face)
-          curl -sL -o app/src/main/res/drawable/scary_face.png "https://clipart-library.com/images/pT5dRngkc.jpg"
-          # Fallback public domain skull
-          if [ ! -s app/src/main/res/drawable/scary_face.png ]; then
-            curl -sL -o app/src/main/res/drawable/scary_face.png "https://www.publicdomainpictures.net/pictures/370000/velka/image-1599417362z5n.jpg"
+          # Ảnh kinh dị rõ hơn (skull public domain)
+          curl -sL -o /tmp/face1.jpg "https://www.publicdomainpictures.net/pictures/370000/velka/image-1599417362z5n.jpg"
+          curl -sL -o /tmp/face2.jpg "https://www.publicdomainpictures.net/pictures/60000/velka/scary-skull.jpg"
+          curl -sL -o /tmp/face3.jpg "https://clipart-library.com/images/pT5dRngkc.jpg"
+
+          # Chọn file nào tải được
+          if [ -s /tmp/face1.jpg ]; then cp /tmp/face1.jpg app/src/main/res/drawable/scary_face.png
+          elif [ -s /tmp/face2.jpg ]; then cp /tmp/face2.jpg app/src/main/res/drawable/scary_face.png
+          else cp /tmp/face3.jpg app/src/main/res/drawable/scary_face.png
           fi
 
           curl -sL -o app/src/main/res/raw/scare_sound.mp3 "https://orangefreesounds.com/wp-content/uploads/2024/07/Horror-scream-sound-effect.mp3"
@@ -51,6 +55,8 @@ jobs:
           cp app/src/main/res/drawable/scary_face.png app/src/main/res/mipmap-hdpi/ic_launcher.png
           cp app/src/main/res/drawable/scary_face.png app/src/main/res/mipmap-mdpi/ic_launcher.png
           cp app/src/main/res/drawable/scary_face.png app/src/main/res/mipmap-xhdpi/ic_launcher.png
+
+          ls -lh app/src/main/res/drawable app/src/main/res/raw
 
       - name: local.properties
         run: echo "sdk.dir=$ANDROID_HOME" > local.properties
