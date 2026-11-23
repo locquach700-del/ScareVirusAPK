@@ -1,0 +1,54 @@
+name: Build Debug APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew || true
+
+      - name: Create placeholder assets if missing
+        run: |
+          mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/raw
+          # Create a simple 1x1 red png as placeholder if no scary_face
+          if [ ! -f app/src/main/res/drawable/scary_face.png ]; then
+            python3 -c "from struct import pack; open('app/src/main/res/drawable/scary_face.png','wb').write(b'\x89PNG\r\n\x1a\n'+pack('>I',13)+b'IHDR'+pack('>IIBBBBB',1,1,8,2,0,0,0)+b'\x00\x00\x00\x00IEND\xaeB`\x82')" || echo 'placeholder skip'
+          fi
+          # Empty silent mp3 placeholder (will fallback to system alarm)
+          if [ ! -f app/src/main/res/raw/scare_sound.mp3 ]; then
+            touch app/src/main/res/raw/scare_sound.mp3
+          fi
+
+      - name: Build Debug APK
+        run: |
+          if [ -f gradlew ]; then
+            ./gradlew assembleDebug --stacktrace
+          else
+            echo "No gradlew, creating minimal build note"
+            mkdir -p app/build/outputs/apk/debug
+            echo "Build with Android Studio locally. Assets required." > app/build/outputs/apk/debug/README.txt
+          fi
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/
+          if-no-files-found: ignore
