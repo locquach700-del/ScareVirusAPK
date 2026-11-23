@@ -8,8 +8,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -19,37 +21,69 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          packages: 'tools platform-tools platforms;android-34 build-tools;34.0.0'
+
+      - name: Install required SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
 
       - name: Download scary assets
         run: |
-          mkdir -p app/src/main/res/drawable app/src/main/res/raw app/src/main/res/mipmap-hdpi
-          curl -sL -o app/src/main/res/drawable/scary_face.png "https://clipart-library.com/images/pT5dRngkc.jpg" || true
-          curl -sL -o app/src/main/res/raw/scare_sound.mp3 "https://orangefreesounds.com/wp-content/uploads/2024/07/Horror-scream-sound-effect.mp3" || true
-          # fallback icon
-          python3 -c "
-from struct import pack
-open('app/src/main/res/mipmap-hdpi/ic_launcher.png','wb').write(b'\x89PNG\r\n\x1a\n' + pack('>I',13) + b'IHDR' + pack('>IIBBBBB',48,48,8,2,0,0,0) + b'\x00'*20 + b'IEND\xaeB`\x82')
-" || true
-          ls -lh app/src/main/res/drawable/ app/src/main/res/raw/ || true
+          mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/raw
+          mkdir -p app/src/main/res/mipmap-hdpi
+
+          # Horror face image
+          curl -sL -o app/src/main/res/drawable/scary_face.png \
+            "https://clipart-library.com/images/pT5dRngkc.jpg" || \
+          curl -sL -o app/src/main/res/drawable/scary_face.png \
+            "https://www.publicdomainpictures.net/pictures/370000/velka/image-1599417362z5n.jpg"
+
+          # Horror scream sound
+          curl -sL -o app/src/main/res/raw/scare_sound.mp3 \
+            "https://orangefreesounds.com/wp-content/uploads/2024/07/Horror-scream-sound-effect.mp3"
+
+          # Simple red launcher icon (fallback)
+          if command -v convert >/dev/null; then
+            convert -size 192x192 xc:'#AA0000' app/src/main/res/mipmap-hdpi/ic_launcher.png
+          else
+            # minimal valid PNG
+            python3 -c '
+import struct
+def png(w,h,color=(170,0,0)):
+    def chunk(t,d):
+        return struct.pack(">I",len(d)) + t + d + struct.pack(">I",0xffffffff & __import__("zlib").crc32(t+d))
+    sig = b"\x89PNG\r\n\x1a\n"
+    ihdr = chunk(b"IHDR", struct.pack(">IIBBBBB",w,h,8,2,0,0,0))
+    raw = b""
+    for y in range(h):
+        raw += b"\x00" + bytes(color)*w
+    idat = chunk(b"IDAT", __import__("zlib").compress(raw))
+    iend = chunk(b"IEND", b"")
+    open("app/src/main/res/mipmap-hdpi/ic_launcher.png","wb").write(sig+ihdr+idat+iend)
+png(48,48)
+'
+          fi
+
+          echo "Assets:"
+          ls -lh app/src/main/res/drawable/ app/src/main/res/raw/ app/src/main/res/mipmap-hdpi/
 
       - name: Create local.properties
-        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
 
-      - name: Build with Gradle
+      - name: Bootstrap Gradle Wrapper
         run: |
-          curl -sL -o gradle.zip https://services.gradle.org/distributions/gradle-8.2-bin.zip
-          unzip -q gradle.zip
-          ./gradle-8.2/bin/gradle wrapper --gradle-version 8.2 || true
-          chmod +x gradlew || true
-          ./gradlew assembleDebug --stacktrace --no-daemon || ./gradle-8.2/bin/gradle assembleDebug --stacktrace --no-daemon
+          curl -sL -o gradle-8.2-bin.zip https://services.gradle.org/distributions/gradle-8.2-bin.zip
+          unzip -q gradle-8.2-bin.zip
+          ./gradle-8.2/bin/gradle wrapper --gradle-version 8.2
+          chmod +x gradlew
 
-      - name: Upload APK
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: ScareVirus-debug-apk
-          path: |
-            app/build/outputs/apk/debug/*.apk
-            **/app-debug.apk
-          if-no-files-found: warn
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
