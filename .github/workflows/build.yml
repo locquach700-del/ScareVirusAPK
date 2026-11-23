@@ -42,18 +42,13 @@ jobs:
           mkdir -p app/src/main/res/mipmap-mdpi
           mkdir -p app/src/main/res/mipmap-xhdpi
 
-          # Scary face
           curl -sL -o app/src/main/res/drawable/scary_face.png "https://clipart-library.com/images/pT5dRngkc.jpg"
-
-          # Horror sound
           curl -sL -o app/src/main/res/raw/scare_sound.mp3 "https://orangefreesounds.com/wp-content/uploads/2024/07/Horror-scream-sound-effect.mp3"
 
-          # Use the scary face as launcher icon too
+          # Use scary face as icon
           cp app/src/main/res/drawable/scary_face.png app/src/main/res/mipmap-hdpi/ic_launcher.png
           cp app/src/main/res/drawable/scary_face.png app/src/main/res/mipmap-mdpi/ic_launcher.png
           cp app/src/main/res/drawable/scary_face.png app/src/main/res/mipmap-xhdpi/ic_launcher.png
-
-          ls -lh app/src/main/res/drawable app/src/main/res/raw app/src/main/res/mipmap-hdpi
 
       - name: local.properties
         run: echo "sdk.dir=$ANDROID_HOME" > local.properties

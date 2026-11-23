@@ -1,82 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/rootLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000">
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="24dp"
+    android:background="#FFFFFF">
 
-    <ImageView
-        android:id="@+id/scaryImage"
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="System Update"
+        android:textSize="22sp"
+        android:textColor="#222222"
+        android:textStyle="bold" />
+
+    <TextView
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:scaleType="centerCrop"
-        android:src="@drawable/scary_face"
-        android:alpha="0.9" />
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Checking for updates...\nPlease wait a moment."
+        android:textSize="16sp"
+        android:textColor="#444444"
+        android:gravity="center" />
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#99AA0000" />
+    <ProgressBar
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:indeterminate="true" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:padding="20dp">
-
-        <TextView
-            android:id="@+id/scareText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="⚠ SYSTEM INFECTED ⚠"
-            android:textColor="#FF2222"
-            android:textSize="22sp"
-            android:textStyle="bold"
-            android:gravity="center"
-            android:shadowColor="#000"
-            android:shadowDx="2"
-            android:shadowDy="2"
-            android:shadowRadius="4" />
-
-        <TextView
-            android:id="@+id/timerText"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="TIME LEFT: 59:59"
-            android:textColor="#FFFF00"
-            android:textSize="28sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:text="All personal data, photos, messages and bank accounts have been encrypted and uploaded.\n\nPay 0.05 BTC within 60 minutes or everything will be deleted forever."
-            android:textColor="#FFFFFF"
-            android:textSize="15sp"
-            android:gravity="center" />
-
-        <Button
-            android:id="@+id/cureButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            android:text="解除 / إزالة الفيروس"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#AA0000"
-            android:paddingHorizontal="24dp"
-            android:paddingVertical="12dp" />
-
-        <TextView
-            android:id="@+id/cureText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:textColor="#00FF00"
-            android:textSize="16sp"
-            android:gravity="center"
-            android:visibility="gone" />
-    </LinearLayout>
-</FrameLayout>
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="Do not close this window"
+        android:textSize="14sp"
+        android:textColor="#888888" />
+</LinearLayout>
