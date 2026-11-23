@@ -10,8 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -22,68 +21,35 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install required SDK packages
+      - name: Accept licenses
+        run: yes | sdkmanager --licenses || true
+
+      - name: Install SDK packages
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+
+      - name: Download assets
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
-
-      - name: Download scary assets
-        run: |
-          mkdir -p app/src/main/res/drawable
-          mkdir -p app/src/main/res/raw
-          mkdir -p app/src/main/res/mipmap-hdpi
-
-          # Horror face image
-          curl -sL -o app/src/main/res/drawable/scary_face.png \
-            "https://clipart-library.com/images/pT5dRngkc.jpg" || \
-          curl -sL -o app/src/main/res/drawable/scary_face.png \
-            "https://www.publicdomainpictures.net/pictures/370000/velka/image-1599417362z5n.jpg"
-
-          # Horror scream sound
-          curl -sL -o app/src/main/res/raw/scare_sound.mp3 \
-            "https://orangefreesounds.com/wp-content/uploads/2024/07/Horror-scream-sound-effect.mp3"
-
-          # Simple red launcher icon (fallback)
-          if command -v convert >/dev/null; then
-            convert -size 192x192 xc:'#AA0000' app/src/main/res/mipmap-hdpi/ic_launcher.png
-          else
-            # minimal valid PNG
-            python3 -c '
-import struct
-def png(w,h,color=(170,0,0)):
-    def chunk(t,d):
-        return struct.pack(">I",len(d)) + t + d + struct.pack(">I",0xffffffff & __import__("zlib").crc32(t+d))
-    sig = b"\x89PNG\r\n\x1a\n"
-    ihdr = chunk(b"IHDR", struct.pack(">IIBBBBB",w,h,8,2,0,0,0))
-    raw = b""
-    for y in range(h):
-        raw += b"\x00" + bytes(color)*w
-    idat = chunk(b"IDAT", __import__("zlib").compress(raw))
-    iend = chunk(b"IEND", b"")
-    open("app/src/main/res/mipmap-hdpi/ic_launcher.png","wb").write(sig+ihdr+idat+iend)
-png(48,48)
-'
-          fi
-
-          echo "Assets:"
-          ls -lh app/src/main/res/drawable/ app/src/main/res/raw/ app/src/main/res/mipmap-hdpi/
+          mkdir -p app/src/main/res/drawable app/src/main/res/raw app/src/main/res/mipmap-hdpi
+          curl -sL -o app/src/main/res/drawable/scary_face.png "https://clipart-library.com/images/pT5dRngkc.jpg"
+          curl -sL -o app/src/main/res/raw/scare_sound.mp3 "https://orangefreesounds.com/wp-content/uploads/2024/07/Horror-scream-sound-effect.mp3"
+          convert -size 192x192 xc:red app/src/main/res/mipmap-hdpi/ic_launcher.png || true
+          ls -lh app/src/main/res/drawable app/src/main/res/raw
 
       - name: Create local.properties
         run: echo "sdk.dir=$ANDROID_HOME" > local.properties
 
-      - name: Bootstrap Gradle Wrapper
+      - name: Bootstrap Gradle
         run: |
-          curl -sL -o gradle-8.2-bin.zip https://services.gradle.org/distributions/gradle-8.2-bin.zip
-          unzip -q gradle-8.2-bin.zip
+          curl -sL -o gradle.zip https://services.gradle.org/distributions/gradle-8.2-bin.zip
+          unzip -q gradle.zip
           ./gradle-8.2/bin/gradle wrapper --gradle-version 8.2
           chmod +x gradlew
 
-      - name: Build Debug APK
+      - name: Build APK
         run: ./gradlew assembleDebug --stacktrace --no-daemon
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ScareVirus-debug-apk
           path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
