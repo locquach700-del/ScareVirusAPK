@@ -33,14 +33,49 @@ jobs:
           echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
           echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
 
-      - name: Download assets
+      - name: Download assets + create icon
         run: |
-          mkdir -p app/src/main/res/drawable app/src/main/res/raw app/src/main/res/mipmap-hdpi
-          curl -sL -o app/src/main/res/drawable/scary_face.png "https://clipart-library.com/images/pT5dRngkc.jpg"
-          curl -sL -o app/src/main/res/raw/scare_sound.mp3 "https://orangefreesounds.com/wp-content/uploads/2024/07/Horror-scream-sound-effect.mp3"
-          # simple red icon
-          convert -size 192x192 xc:'#AA0000' app/src/main/res/mipmap-hdpi/ic_launcher.png || true
-          ls -lh app/src/main/res/drawable app/src/main/res/raw
+          mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/raw
+          mkdir -p app/src/main/res/mipmap-hdpi
+          mkdir -p app/src/main/res/mipmap-mdpi
+          mkdir -p app/src/main/res/mipmap-xhdpi
+
+          # Horror face (save as png even if source is jpg)
+          curl -sL -o /tmp/face.jpg "https://clipart-library.com/images/pT5dRngkc.jpg"
+          # convert if available, else just copy
+          if command -v convert >/dev/null; then
+            convert /tmp/face.jpg app/src/main/res/drawable/scary_face.png
+          else
+            cp /tmp/face.jpg app/src/main/res/drawable/scary_face.png
+          fi
+
+          # Horror sound
+          curl -sL -o app/src/main/res/raw/scare_sound.mp3 \
+            "https://orangefreesounds.com/wp-content/uploads/2024/07/Horror-scream-sound-effect.mp3"
+
+          # Guaranteed valid red PNG icon using Python
+          python3 - << 'PY'
+import struct, zlib
+def write_png(path, w, h, r=170, g=0, b=0):
+    def chunk(tag, data):
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xffffffff)
+    raw = b""
+    for y in range(h):
+        raw += b"\x00" + bytes([r, g, b]) * w
+    open(path, "wb").write(
+        b"\x89PNG\r\n\x1a\n" +
+        chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) +
+        chunk(b"IDAT", zlib.compress(raw)) +
+        chunk(b"IEND", b"")
+    )
+write_png("app/src/main/res/mipmap-hdpi/ic_launcher.png", 72, 72)
+write_png("app/src/main/res/mipmap-mdpi/ic_launcher.png", 48, 48)
+write_png("app/src/main/res/mipmap-xhdpi/ic_launcher.png", 96, 96)
+print("icons created")
+PY
+
+          ls -lh app/src/main/res/drawable app/src/main/res/raw app/src/main/res/mipmap-hdpi
 
       - name: Create local.properties
         run: echo "sdk.dir=$ANDROID_HOME" > local.properties
